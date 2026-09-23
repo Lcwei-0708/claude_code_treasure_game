@@ -141,3 +141,5 @@ vite.config.ts.timestamp-*
 build/
 */.DS_Store
 .vercel/
+# Local SQLite database (used on the sqlite-login branch)
+data/
