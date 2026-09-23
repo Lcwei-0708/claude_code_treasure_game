@@ -1,10 +1,27 @@
 
-  import { defineConfig } from 'vite';
+  import { defineConfig, type Plugin } from 'vite';
   import react from '@vitejs/plugin-react-swc';
   import path from 'path';
+  import { spawn } from 'child_process';
+
+  // Start the SQLite API server (server/index.mjs) alongside `vite` dev, and stop it when Vite stops
+  function apiServer(): Plugin {
+    return {
+      name: 'api-server',
+      apply: 'serve',
+      configureServer(server) {
+        const child = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', 'server/index.mjs'], {
+          stdio: 'inherit',
+        });
+        const stop = () => child.kill();
+        server.httpServer?.on('close', stop);
+        process.on('exit', stop);
+      },
+    };
+  }
 
   export default defineConfig({
-    plugins: [react()],
+    plugins: [react(), apiServer()],
     resolve: {
       extensions: ['.js', '.jsx', '.ts', '.tsx', '.json'],
       alias: {
@@ -56,5 +73,9 @@
     server: {
       port: 3000,
       open: true,
+      // Forward API calls to the SQLite auth server (npm run server)
+      proxy: {
+        '/api': 'http://localhost:3001',
+      },
     },
   });

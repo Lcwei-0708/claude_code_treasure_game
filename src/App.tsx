@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Button } from './components/ui/button';
+import AuthScreen from './components/AuthScreen';
+import { fetchMe, saveScore, signOut, type ScoreSummary, type User } from './api';
 import closedChest from './assets/treasure_closed.png';
 import treasureChest from './assets/treasure_opened.png';
 import skeletonChest from './assets/treasure_opened_skeleton.png';
@@ -18,6 +20,9 @@ export default function App() {
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [score, setScore] = useState(0);
   const [gameEnded, setGameEnded] = useState(false);
+  const [user, setUser] = useState<User | null>(null); // null = playing as guest
+  const [scores, setScores] = useState<ScoreSummary | null>(null);
+  const [showAuth, setShowAuth] = useState(false);
 
   const initializeGame = () => {
     // Randomly assign treasure to one box
@@ -37,6 +42,36 @@ export default function App() {
   useEffect(() => {
     initializeGame();
   }, []);
+
+  // Restore a signed-in session from the stored token on first load (otherwise stay a guest)
+  useEffect(() => {
+    fetchMe().then(me => {
+      if (!me) return;
+      setUser(me.user);
+      setScores(me.scores);
+    });
+  }, []);
+
+  // Save the final score when a signed-in player's game ends (guests are never saved)
+  useEffect(() => {
+    if (!gameEnded || !user) return;
+    saveScore(score).then(setScores).catch(err => console.error('Failed to save score:', err));
+  }, [gameEnded]);
+
+  // Close the sign-in screen and start a fresh game for the newly signed-in user
+  const handleSignedIn = (signedInUser: User) => {
+    setUser(signedInUser);
+    setShowAuth(false);
+    fetchMe().then(me => setScores(me?.scores ?? null));
+    initializeGame();
+  };
+
+  // Sign out and keep playing as a guest
+  const handleSignOut = async () => {
+    await signOut();
+    setUser(null);
+    setScores(null);
+  };
 
   // Play the normal chest-open sound for treasure, or the evil-laugh version for a skeleton
   const playOpenSound = (hasTreasure: boolean) => {
@@ -76,8 +111,30 @@ export default function App() {
     initializeGame();
   };
 
+  if (showAuth) {
+    return <AuthScreen onSignedIn={handleSignedIn} onCancel={() => setShowAuth(false)} />;
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-amber-50 to-amber-100 flex flex-col items-center justify-center p-8">
+      <div className="flex items-center gap-3 text-amber-800 text-sm" style={{ position: 'absolute', top: '1rem', right: '1rem' }}>
+        {user ? (
+          <>
+            <span>Signed in as {user.username}</span>
+            <button type="button" className="underline cursor-pointer" onClick={handleSignOut}>
+              Sign out
+            </button>
+          </>
+        ) : (
+          <>
+            <span>Playing as Guest (scores not saved)</span>
+            <Button onClick={() => setShowAuth(true)} className="bg-amber-600 hover:bg-amber-700 text-white">
+              Sign in
+            </Button>
+          </>
+        )}
+      </div>
+
       <div className="text-center mb-8">
         <h1 className="text-4xl mb-4 text-amber-900">🏴‍☠️ Treasure Hunt Game 🏴‍☠️</h1>
         <p className="text-amber-800 mb-4">
@@ -95,6 +152,11 @@ export default function App() {
             ${score}
           </span>
         </div>
+        {scores && (
+          <p className="text-amber-700 text-sm text-center mt-2">
+            Best: {scores.best === null ? '—' : `$${scores.best}`} · Games played: {scores.games}
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">

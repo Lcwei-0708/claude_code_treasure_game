@@ -10,8 +10,9 @@ A single-page React 18 + TypeScript "Treasure Hunt" game built with Vite (export
 
 ```bash
 npm install
-npm run dev     # Vite dev server on http://localhost:3000 (auto-opens browser)
+npm run dev     # Vite dev server on http://localhost:3000 (auto-opens browser); also starts the API server
 npm run build   # Production build to ./build (not ./dist)
+npm run server  # SQLite auth/score API alone on http://localhost:3001 (Vite proxies /api to it)
 ```
 
 There is no lint, typecheck, or test setup (no ESLint, no tsconfig, no test runner). Vite/SWC strips types without checking them, so type errors will not fail the build.
@@ -19,7 +20,7 @@ There is no lint, typecheck, or test setup (no ESLint, no tsconfig, no test runn
 ## Architecture
 
 - **All game logic and UI live in `src/App.tsx`** as one component: `boxes` / `score` / `gameEnded` state, `initializeGame` (runs on mount and on "Play Again"), and `openBox` (updates score and checks end condition inside the `setBoxes` updater). Animations use `motion/react` (Framer Motion's successor package).
-- **Branches**: `main` is the static, login-free version deployed to GitHub Pages by `/deploy_github_page` (`.claude/commands/deploy_github_page.md`, which pushes to the user's own repo via a `my-github` remote, never `origin`). `sqlite-login` adds a SQLite sign-in/score API on top of `main`; see that branch's CLAUDE.md.
+- **Auth & scores**: `server/index.mjs` is a dependency-free Node HTTP server using built-in `node:sqlite` (Node 22.5+), storing `users` (scrypt password hashes), `sessions` (bearer tokens, 7-day expiry) and `scores` in `data/game.db` (gitignored; override with `DB_PATH`). `src/api.ts` is the client (token in localStorage); The game opens in guest mode; the corner "Sign in" button shows `src/components/AuthScreen.tsx` (sign-in/sign-up). Guest mode never calls the score API. This feature exists only on the `sqlite-login` branch; `main` is the static, login-free version deployed to GitHub Pages.
 - **Static assets are imported as ES modules** (`src/assets/*.png`, `src/audios/*.mp3`) and Vite resolves them to URLs. `chest_open.mp3` and `chest_open_with_evil_laugh.mp3` are already imported in `App.tsx` but not yet played. `src/assets/key.png` is intended for the hover cursor. `src/results/` holds reference screenshots, not app code.
 - **`src/components/ui/`** is a vendored shadcn/ui (Radix-based) component library; only `Button` is currently used. Its files import packages with version suffixes (e.g. `"@radix-ui/react-slot@1.1.2"`); these resolve only because of the matching aliases in `vite.config.ts`. If you add a new dependency imported that way, add an alias too — or import it without the version suffix. `@/` aliases to `src/`.
 
